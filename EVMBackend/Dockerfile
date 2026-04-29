@@ -31,6 +31,9 @@ WORKDIR /app
 # Copy JAR from builder - find the executable jar (excludes original)
 COPY --from=builder /app/target/EVMBackend-0.0.1-SNAPSHOT.jar app.jar
 
+# Verify JAR exists and is readable
+RUN ls -lah /app/app.jar && file /app/app.jar
+
 # Expose port (Railway will override with $PORT)
 EXPOSE 8080
 
