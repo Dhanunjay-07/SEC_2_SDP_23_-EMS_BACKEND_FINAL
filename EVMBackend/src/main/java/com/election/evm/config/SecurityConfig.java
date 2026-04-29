@@ -1,7 +1,6 @@
 package com.election.evm.config;
 
 import com.election.evm.security.JwtAuthenticationFilter;
-import com.election.evm.security.GoogleOAuth2SuccessHandler;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -18,14 +17,11 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 @Configuration
 public class SecurityConfig {
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
-    private final GoogleOAuth2SuccessHandler googleOAuth2SuccessHandler;
     private final CorsConfigFromEnv corsConfig;
 
     public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter,
-                          GoogleOAuth2SuccessHandler googleOAuth2SuccessHandler,
                           CorsConfigFromEnv corsConfig) {
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
-        this.googleOAuth2SuccessHandler = googleOAuth2SuccessHandler;
         this.corsConfig = corsConfig;
     }
 
@@ -43,7 +39,6 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/auth/otp/send", "/api/auth/otp/verify").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/refresh").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/auth/me").authenticated()
-                    .requestMatchers("/oauth2/**", "/login/oauth2/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/election-results").hasAnyRole("ADMIN", "CITIZEN", "OBSERVER", "ANALYST")
                         .requestMatchers("/api/users/**", "/api/dashboard/**").hasRole("ADMIN")
                         .requestMatchers("/api/incidents/**").hasAnyRole("ADMIN", "OBSERVER")
@@ -58,7 +53,6 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.DELETE, "/api/election-results/**").hasAnyRole("ADMIN", "ANALYST")
                         .anyRequest().authenticated()
                 )
-                    .oauth2Login(oauth2 -> oauth2.successHandler(googleOAuth2SuccessHandler))
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();

@@ -144,12 +144,6 @@ public class EvmService {
         }
     }
 
-    public ApiResponse<AuthResponse> handleOAuthSuccess() {
-        User actor = getAuthenticatedUser();
-        String token = jwtService.generateToken(String.valueOf(actor.getId()), actor.getEmail(), actor.getRole());
-        return ApiResponse.success("OAuth login successful.", new AuthResponse(token, sanitizeUser(actor)));
-    }
-
     public ApiResponse<User> getCurrentUser() {
         User actor = getAuthenticatedUser();
         return ApiResponse.success("Current user fetched.", sanitizeUser(actor));

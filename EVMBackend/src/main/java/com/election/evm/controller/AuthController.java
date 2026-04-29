@@ -20,7 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * Authentication Controller
- * Handles user registration, login, token refresh, and OAuth2 callbacks
+ * Handles user registration, login, and token refresh.
  */
 @RestController
 @RequestMapping("/api/auth")
@@ -88,13 +88,4 @@ public class AuthController {
         return service.getCurrentUser();
     }
 
-    /**
-     * OAuth2 login success callback
-     * Called after successful OAuth2 authentication
-     * @return ApiResponse with JWT token and user data
-     */
-    @GetMapping("/oauth-success")
-    public ApiResponse<AuthResponse> oauthSuccess() {
-        return service.handleOAuthSuccess();
-    }
 }
