@@ -29,10 +29,10 @@ FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
 
 # Copy JAR from builder - find the executable jar (excludes original)
-COPY --from=builder /app/target/EVMBackend-0.0.1-SNAPSHOT.jar app.jar
+COPY --from=builder /app/target target
 
 # Verify JAR exists and is readable
-RUN ls -lah /app/app.jar && file /app/app.jar
+RUN ls -lah /app/target/*.jar && file /app/target/*.jar || echo "No jars found"
 
 # Expose port (Railway will override with $PORT)
 EXPOSE 8080
@@ -42,4 +42,4 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD wget --no-verbose --tries=1 --spider http://localhost:8080/actuator/health || exit 1
 
 # Run the application
-ENTRYPOINT ["sh", "-c", "java -jar app.jar --server.port=${PORT:-8080} --spring.config.name=application-prod"]
+ENTRYPOINT ["sh", "-c", "java -jar $(find /app/target -name '*.jar' ! -name '*.original' | head -n 1) --server.port=${PORT:-8080} --spring.config.name=application-prod"]
