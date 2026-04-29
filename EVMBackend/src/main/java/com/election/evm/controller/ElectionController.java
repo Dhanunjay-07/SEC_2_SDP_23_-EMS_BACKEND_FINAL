@@ -1,6 +1,7 @@
 package com.election.evm.controller;
 
 import com.election.evm.dto.ApiResponse;
+import com.election.evm.dto.BulkUploadResult;
 import com.election.evm.dto.ElectionResultRequest;
 import com.election.evm.entity.ElectionResult;
 import com.election.evm.service.EvmService;
@@ -13,7 +14,9 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -51,6 +54,17 @@ public class ElectionController {
     @PostMapping
     public ApiResponse<ElectionResult> createElectionResult(@Valid @RequestBody ElectionResultRequest request) {
         return service.createElectionResult(request);
+    }
+
+    /**
+     * Upload Excel file containing election results, turnout and regional data
+     * Requires ANALYST role
+     * @param file - Excel file to import
+     * @return Bulk upload response with updated analytics
+     */
+    @PostMapping("/bulk-upload")
+    public ApiResponse<BulkUploadResult> bulkUploadElectionData(@RequestParam("file") MultipartFile file) {
+        return service.bulkUploadElectionData(file);
     }
 
     /**

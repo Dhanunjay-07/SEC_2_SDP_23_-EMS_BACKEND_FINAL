@@ -4,6 +4,7 @@ import com.election.evm.dto.AnalystReportRequest;
 import com.election.evm.dto.ApiResponse;
 import com.election.evm.dto.AuthResponse;
 import com.election.evm.dto.AuthRequest;
+import com.election.evm.dto.BulkUploadResult;
 import com.election.evm.dto.DashboardStats;
 import com.election.evm.dto.ElectionResultRequest;
 import com.election.evm.dto.FraudReportRequest;
@@ -14,21 +15,36 @@ import com.election.evm.entity.AnalystReport;
 import com.election.evm.entity.ElectionResult;
 import com.election.evm.entity.FraudReport;
 import com.election.evm.entity.Incident;
+import com.election.evm.entity.RegionalStatistic;
+import com.election.evm.entity.TurnoutData;
 import com.election.evm.entity.User;
 import com.election.evm.repository.AnalystReportRepository;
 import com.election.evm.repository.ElectionResultRepository;
 import com.election.evm.repository.FraudReportRepository;
 import com.election.evm.repository.IncidentRepository;
+import com.election.evm.repository.RegionalStatisticRepository;
+import com.election.evm.repository.TurnoutDataRepository;
 import com.election.evm.repository.UserRepository;
 import com.election.evm.security.JwtService;
 import jakarta.transaction.Transactional;
+import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.ss.usermodel.WorkbookFactory;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 
 @Service
@@ -38,8 +54,11 @@ public class EvmService {
     private final FraudReportRepository fraudReportRepository;
     private final AnalystReportRepository analystReportRepository;
     private final ElectionResultRepository electionResultRepository;
+    private final RegionalStatisticRepository regionalStatisticRepository;
+    private final TurnoutDataRepository turnoutDataRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
+    private final OtpService otpService;
 
     public EvmService(
             UserRepository userRepository,
@@ -47,16 +66,22 @@ public class EvmService {
             FraudReportRepository fraudReportRepository,
             AnalystReportRepository analystReportRepository,
             ElectionResultRepository electionResultRepository,
+            RegionalStatisticRepository regionalStatisticRepository,
+            TurnoutDataRepository turnoutDataRepository,
             PasswordEncoder passwordEncoder,
-            JwtService jwtService
+            JwtService jwtService,
+            OtpService otpService
     ) {
         this.userRepository = userRepository;
         this.incidentRepository = incidentRepository;
         this.fraudReportRepository = fraudReportRepository;
         this.analystReportRepository = analystReportRepository;
         this.electionResultRepository = electionResultRepository;
+        this.regionalStatisticRepository = regionalStatisticRepository;
+        this.turnoutDataRepository = turnoutDataRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
+        this.otpService = otpService;
     }
 
     @Transactional
@@ -66,6 +91,17 @@ public class EvmService {
             return ApiResponse.failure("Email is already registered.");
         }
 
+        if (!otpService.isVerified(email)) {
+            return ApiResponse.failure("Please verify OTP for this email before registering.");
+        }
+
+        if (!request.otp().trim().isEmpty()) {
+            ApiResponse<Void> otpCheck = otpService.verifyOtp(email, request.otp());
+            if (!otpCheck.success()) {
+                return ApiResponse.failure(otpCheck.message());
+            }
+        }
+
         User user = new User();
         user.setName(request.name().trim());
         user.setEmail(email);
@@ -73,6 +109,7 @@ public class EvmService {
         user.setRole(normalizeRole(request.role()));
 
         user = userRepository.save(user);
+        otpService.clear(email);
         return ApiResponse.success("Registration successful.", sanitizeUser(user));
     }
 
@@ -378,6 +415,237 @@ public class EvmService {
 
         result = electionResultRepository.save(result);
         return ApiResponse.success("Election result added.", result);
+    }
+
+    @Transactional
+    public ApiResponse<BulkUploadResult> bulkUploadElectionData(MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            return ApiResponse.failure("No file provided for upload.");
+        }
+
+        List<String> errors = new ArrayList<>();
+        List<ElectionResult> uploadedElectionResults = new ArrayList<>();
+        List<FraudReport> uploadedFraudReports = new ArrayList<>();
+        List<RegionalStatistic> uploadedRegionalStatistics = new ArrayList<>();
+        List<TurnoutData> uploadedTurnout = new ArrayList<>();
+
+        try (Workbook workbook = WorkbookFactory.create(file.getInputStream())) {
+            for (Sheet sheet : workbook) {
+                String sheetName = sheet.getSheetName().trim();
+                if (sheetName.equalsIgnoreCase("ElectionResults")) {
+                    parseElectionResultsSheet(sheet, uploadedElectionResults, errors);
+                } else if (sheetName.equalsIgnoreCase("FraudReports")) {
+                    parseFraudReportsSheet(sheet, uploadedFraudReports, errors);
+                } else if (sheetName.equalsIgnoreCase("RegionalStatistics")) {
+                    parseRegionalStatisticsSheet(sheet, uploadedRegionalStatistics, errors);
+                } else if (sheetName.equalsIgnoreCase("TurnoutData") || sheetName.equalsIgnoreCase("Turnout")) {
+                    parseTurnoutDataSheet(sheet, uploadedTurnout, errors);
+                } else {
+                    errors.add("Skipped unknown sheet: " + sheetName);
+                }
+            }
+        } catch (IOException e) {
+            return ApiResponse.failure("Unable to read Excel file: " + e.getMessage());
+        }
+
+        DashboardStats stats = new DashboardStats(
+                (int) userRepository.count(),
+                (int) incidentRepository.count(),
+                (int) fraudReportRepository.count(),
+                (int) analystReportRepository.count(),
+                (int) electionResultRepository.count()
+        );
+
+        BulkUploadResult result = new BulkUploadResult(
+                uploadedElectionResults,
+                uploadedFraudReports,
+                uploadedRegionalStatistics,
+                uploadedTurnout,
+                stats,
+                errors
+        );
+
+        return ApiResponse.success("Bulk Excel upload processed.", result);
+    }
+
+    private void parseElectionResultsSheet(Sheet sheet, List<ElectionResult> uploadedElectionResults, List<String> errors) {
+        for (int rowIndex = 1; rowIndex <= sheet.getLastRowNum(); rowIndex++) {
+            Row row = sheet.getRow(rowIndex);
+            if (row == null) {
+                continue;
+            }
+
+            String constituency = getCellValueAsString(row.getCell(0));
+            String boothName = getCellValueAsString(row.getCell(1));
+            String winner = getCellValueAsString(row.getCell(2));
+            String party = getCellValueAsString(row.getCell(3));
+            Integer votes = getCellValueAsInteger(row.getCell(4));
+            Integer totalVotes = getCellValueAsInteger(row.getCell(5));
+            String status = getCellValueAsString(row.getCell(6));
+
+            if (constituency.isBlank() || boothName.isBlank() || winner.isBlank() || party.isBlank() || votes == null || totalVotes == null) {
+                errors.add("ElectionResults sheet row " + (rowIndex + 1) + " is missing required values.");
+                continue;
+            }
+
+            ElectionResult electionResult = electionResultRepository
+                    .findByConstituencyIgnoreCaseAndBoothNameIgnoreCase(constituency, boothName)
+                    .orElseGet(ElectionResult::new);
+
+            electionResult.setConstituency(constituency.trim());
+            electionResult.setBoothName(boothName.trim());
+            electionResult.setWinner(winner.trim());
+            electionResult.setParty(party.trim());
+            electionResult.setVotes(votes);
+            electionResult.setTotalVotes(totalVotes);
+            electionResult.setStatus(status.isBlank() ? "reported" : status.trim());
+
+            electionResult = electionResultRepository.save(electionResult);
+            uploadedElectionResults.add(electionResult);
+        }
+    }
+
+    private void parseFraudReportsSheet(Sheet sheet, List<FraudReport> uploadedFraudReports, List<String> errors) {
+        for (int rowIndex = 1; rowIndex <= sheet.getLastRowNum(); rowIndex++) {
+            Row row = sheet.getRow(rowIndex);
+            if (row == null) {
+                continue;
+            }
+
+            String title = getCellValueAsString(row.getCell(0));
+            String category = getCellValueAsString(row.getCell(1));
+            String location = getCellValueAsString(row.getCell(2));
+            String status = getCellValueAsString(row.getCell(3));
+            String description = getCellValueAsString(row.getCell(4));
+
+            if (title.isBlank() || category.isBlank() || location.isBlank() || description.isBlank()) {
+                errors.add("FraudReports sheet row " + (rowIndex + 1) + " is missing required values.");
+                continue;
+            }
+
+            FraudReport fraudReport = fraudReportRepository
+                    .findByTitleIgnoreCaseAndLocationIgnoreCase(title, location)
+                    .orElseGet(FraudReport::new);
+
+            fraudReport.setTitle(title.trim());
+            fraudReport.setCategory(category.trim());
+            fraudReport.setLocation(location.trim());
+            fraudReport.setStatus(status.isBlank() ? "submitted" : status.trim());
+            fraudReport.setDescription(description.trim());
+            fraudReport.setCreatedBy("Data Analyst");
+            fraudReport.setCreatedById("system");
+
+            fraudReport = fraudReportRepository.save(fraudReport);
+            uploadedFraudReports.add(fraudReport);
+        }
+    }
+
+    private void parseRegionalStatisticsSheet(Sheet sheet, List<RegionalStatistic> uploadedRegionalStatistics, List<String> errors) {
+        for (int rowIndex = 1; rowIndex <= sheet.getLastRowNum(); rowIndex++) {
+            Row row = sheet.getRow(rowIndex);
+            if (row == null) {
+                continue;
+            }
+
+            String region = getCellValueAsString(row.getCell(0));
+            Integer totalVotes = getCellValueAsInteger(row.getCell(1));
+            Integer anomalyCount = getCellValueAsInteger(row.getCell(2));
+
+            if (region.isBlank() || totalVotes == null) {
+                errors.add("RegionalStatistics sheet row " + (rowIndex + 1) + " is missing required values.");
+                continue;
+            }
+
+            RegionalStatistic statistic = regionalStatisticRepository
+                    .findByRegionIgnoreCase(region)
+                    .orElseGet(RegionalStatistic::new);
+
+            statistic.setRegion(region.trim());
+            statistic.setTotalVotes(totalVotes);
+            statistic.setAnomalyCount(anomalyCount == null ? 0 : anomalyCount);
+            statistic.setUpdatedAt(Instant.now());
+
+            statistic = regionalStatisticRepository.save(statistic);
+            uploadedRegionalStatistics.add(statistic);
+        }
+    }
+
+    private void parseTurnoutDataSheet(Sheet sheet, List<TurnoutData> uploadedTurnout, List<String> errors) {
+        for (int rowIndex = 1; rowIndex <= sheet.getLastRowNum(); rowIndex++) {
+            Row row = sheet.getRow(rowIndex);
+            if (row == null) {
+                continue;
+            }
+
+            String region = getCellValueAsString(row.getCell(0));
+            Integer registeredVoters = getCellValueAsInteger(row.getCell(1));
+            Integer votesCast = getCellValueAsInteger(row.getCell(2));
+            Double turnoutPercentage = getCellValueAsDouble(row.getCell(3));
+
+            if (region.isBlank() || registeredVoters == null || votesCast == null) {
+                errors.add("TurnoutData sheet row " + (rowIndex + 1) + " is missing required values.");
+                continue;
+            }
+
+            TurnoutData turnoutData = turnoutDataRepository
+                    .findByRegionIgnoreCase(region)
+                    .orElseGet(TurnoutData::new);
+
+            turnoutData.setRegion(region.trim());
+            turnoutData.setRegisteredVoters(registeredVoters);
+            turnoutData.setVotesCast(votesCast);
+            turnoutData.setTurnoutPercentage(turnoutPercentage == null ? 0.0 : turnoutPercentage);
+            turnoutData.setUpdatedAt(Instant.now());
+
+            turnoutData = turnoutDataRepository.save(turnoutData);
+            uploadedTurnout.add(turnoutData);
+        }
+    }
+
+    private String getCellValueAsString(Cell cell) {
+        if (cell == null) {
+            return "";
+        }
+        return switch (cell.getCellType()) {
+            case STRING -> cell.getStringCellValue();
+            case NUMERIC -> String.valueOf((int) cell.getNumericCellValue());
+            case BOOLEAN -> String.valueOf(cell.getBooleanCellValue());
+            default -> "";
+        };
+    }
+
+    private Integer getCellValueAsInteger(Cell cell) {
+        if (cell == null) {
+            return null;
+        }
+        return switch (cell.getCellType()) {
+            case NUMERIC -> (int) cell.getNumericCellValue();
+            case STRING -> {
+                try {
+                    yield Integer.parseInt(cell.getStringCellValue().trim());
+                } catch (NumberFormatException e) {
+                    yield null;
+                }
+            }
+            default -> null;
+        };
+    }
+
+    private Double getCellValueAsDouble(Cell cell) {
+        if (cell == null) {
+            return null;
+        }
+        return switch (cell.getCellType()) {
+            case NUMERIC -> cell.getNumericCellValue();
+            case STRING -> {
+                try {
+                    yield Double.parseDouble(cell.getStringCellValue().trim());
+                } catch (NumberFormatException e) {
+                    yield null;
+                }
+            }
+            default -> null;
+        };
     }
 
     @Transactional

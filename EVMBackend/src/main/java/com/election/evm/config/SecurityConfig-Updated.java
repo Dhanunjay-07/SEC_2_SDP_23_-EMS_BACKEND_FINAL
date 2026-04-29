@@ -14,21 +14,35 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-import org.springframework.web.cors.CorsConfiguration;
-import org.springframework.web.cors.CorsConfigurationSource;
-import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
-import java.util.List;
+/**
+ * UPDATED SecurityConfig for Production Deployment
+ * 
+ * KEY CHANGES:
+ * 1. CORS configuration reads from CorsConfigFromEnv (environment variable)
+ * 2. No hardcoded localhost URLs
+ * 3. Production-ready security settings
+ * 
+ * Environment Variables Needed:
+ * - APP_CORS_ALLOWED_ORIGINS: Comma-separated list of allowed origins
+ *   Example: https://yourdomain.com,https://www.yourdomain.com
+ * 
+ * TO USE THIS FILE:
+ * Replace the existing SecurityConfig.java with this content
+ */
 
 @Configuration
 public class SecurityConfig {
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final GoogleOAuth2SuccessHandler googleOAuth2SuccessHandler;
+    private final CorsConfigFromEnv corsConfig;
 
     public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter,
-                          GoogleOAuth2SuccessHandler googleOAuth2SuccessHandler) {
+                          GoogleOAuth2SuccessHandler googleOAuth2SuccessHandler,
+                          CorsConfigFromEnv corsConfig) {
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
         this.googleOAuth2SuccessHandler = googleOAuth2SuccessHandler;
+        this.corsConfig = corsConfig;
     }
 
     @Bean
@@ -45,7 +59,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/auth/otp/send", "/api/auth/otp/verify").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/refresh").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/auth/me").authenticated()
-                    .requestMatchers("/oauth2/**", "/login/oauth2/**").permitAll()
+                        .requestMatchers("/oauth2/**", "/login/oauth2/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/election-results").hasAnyRole("ADMIN", "CITIZEN", "OBSERVER", "ANALYST")
                         .requestMatchers("/api/users/**", "/api/dashboard/**").hasRole("ADMIN")
                         .requestMatchers("/api/incidents/**").hasAnyRole("ADMIN", "OBSERVER")
@@ -60,7 +74,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.DELETE, "/api/election-results/**").hasAnyRole("ADMIN", "ANALYST")
                         .anyRequest().authenticated()
                 )
-                    .oauth2Login(oauth2 -> oauth2.successHandler(googleOAuth2SuccessHandler))
+                .oauth2Login(oauth2 -> oauth2.successHandler(googleOAuth2SuccessHandler))
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
@@ -76,16 +90,13 @@ public class SecurityConfig {
         return config.getAuthenticationManager();
     }
 
+    /**
+     * CORS Configuration from Environment Variable
+     * This replaces the hardcoded localhost configuration
+     * Set APP_CORS_ALLOWED_ORIGINS in Railway environment variables
+     */
     @Bean
-    public CorsConfigurationSource corsConfigurationSource() {
-        CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOrigins(List.of("http://localhost:5173", "http://127.0.0.1:5173"));
-        config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-        config.setAllowedHeaders(List.of("*"));
-        config.setAllowCredentials(false);
-
-        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/**", config);
-        return source;
+    public org.springframework.web.cors.CorsConfigurationSource corsConfigurationSource() {
+        return corsConfig.corsConfigurationSource();
     }
 }

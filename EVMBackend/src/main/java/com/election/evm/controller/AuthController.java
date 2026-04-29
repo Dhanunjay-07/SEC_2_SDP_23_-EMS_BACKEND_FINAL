@@ -4,8 +4,11 @@ import com.election.evm.dto.ApiResponse;
 import com.election.evm.dto.AuthResponse;
 import com.election.evm.dto.AuthRequest;
 import com.election.evm.dto.LoginRequest;
+import com.election.evm.dto.OtpSendRequest;
+import com.election.evm.dto.OtpVerifyRequest;
 import com.election.evm.entity.User;
 import com.election.evm.service.EvmService;
+import com.election.evm.service.OtpService;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -24,9 +27,11 @@ import org.springframework.web.bind.annotation.RestController;
 @CrossOrigin(origins = {"http://localhost:5173", "http://127.0.0.1:5173"})
 public class AuthController {
     private final EvmService service;
+    private final OtpService otpService;
 
-    public AuthController(EvmService service) {
+    public AuthController(EvmService service, OtpService otpService) {
         this.service = service;
+        this.otpService = otpService;
     }
 
     /**
@@ -37,6 +42,16 @@ public class AuthController {
     @PostMapping("/register")
     public ApiResponse<User> register(@Valid @RequestBody AuthRequest request) {
         return service.register(request);
+    }
+
+    @PostMapping("/otp/send")
+    public ApiResponse<Void> sendOtp(@Valid @RequestBody OtpSendRequest request) {
+        return otpService.sendOtp(request.email());
+    }
+
+    @PostMapping("/otp/verify")
+    public ApiResponse<Void> verifyOtp(@Valid @RequestBody OtpVerifyRequest request) {
+        return otpService.verifyOtp(request.email(), request.otp());
     }
 
     /**
