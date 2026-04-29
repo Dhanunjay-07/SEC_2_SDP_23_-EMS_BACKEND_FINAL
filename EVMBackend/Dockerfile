@@ -18,13 +18,17 @@ COPY src src
 # Build the application
 RUN echo "Build timestamp: $(date)" && mvn clean package -DskipTests
 
+# List what jars were created
+RUN echo "=== JARS IN TARGET ===" && ls -lah /app/target/*.jar 2>/dev/null || echo "No jars found!"
+RUN echo "=== ALL TARGET CONTENTS ===" && ls -lah /app/target/ | head -20
+
 # Runtime stage
 FROM eclipse-temurin:21-jre-alpine
 
 # Set working directory
 WORKDIR /app
 
-# Copy JAR from builder
+# Copy JAR from builder - find the executable jar (excludes original)
 COPY --from=builder /app/target/EVMBackend-0.0.1-SNAPSHOT.jar app.jar
 
 # Expose port (Railway will override with $PORT)
