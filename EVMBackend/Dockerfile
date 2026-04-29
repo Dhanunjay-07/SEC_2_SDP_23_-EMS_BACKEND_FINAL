@@ -1,18 +1,22 @@
 # Multi-stage build for Spring Boot with Java 21
+# Cache invalidation: Force rebuild
+ARG BUILDKIT_INLINE_CACHE=1
 FROM maven:3.9.6-eclipse-temurin-21 AS builder
 
 # Set working directory
 WORKDIR /app
 
 # Copy pom.xml and download dependencies
+RUN echo "Forcing rebuild cache invalidation"
 COPY pom.xml .
 RUN mvn dependency:go-offline -B
 
 # Copy source code
+# Force rebuild - timestamp: 2026-04-29 15:25
 COPY src src
 
 # Build the application
-RUN mvn clean package -DskipTests
+RUN echo "Build timestamp: $(date)" && mvn clean package -DskipTests
 
 # Runtime stage
 FROM eclipse-temurin:21-jre-alpine
