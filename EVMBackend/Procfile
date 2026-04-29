@@ -1,1 +1,0 @@
-web: java -jar /app/app.jar --server.port=$PORT --spring.config.name=application-prod
