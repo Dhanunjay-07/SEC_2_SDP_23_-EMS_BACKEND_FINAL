@@ -8,6 +8,6 @@ public record AuthRequest(
         @NotBlank @Email String email,
         @NotBlank String password,
         @NotBlank String role,
-        @NotBlank String otp
+        String otp
 ) {
 }

@@ -6,7 +6,6 @@ import com.election.evm.dto.ElectionResultRequest;
 import com.election.evm.entity.ElectionResult;
 import com.election.evm.service.EvmService;
 import jakarta.validation.Valid;
-import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -27,7 +26,6 @@ import java.util.List;
  */
 @RestController
 @RequestMapping("/api/election-results")
-@CrossOrigin(origins = {"http://localhost:5173", "http://127.0.0.1:5173"})
 public class ElectionController {
     private final EvmService service;
 

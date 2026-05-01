@@ -17,7 +17,7 @@ import java.util.Arrays;
  * Set environment variable: APP_CORS_ALLOWED_ORIGINS=https://frontend.com,https://www.frontend.com
  * 
  * For local development:
- * APP_CORS_ALLOWED_ORIGINS=http://localhost:5173,http://localhost:3000
+ * APP_CORS_ALLOWED_ORIGINS=http://localhost:*,http://127.0.0.1:*
  */
 @Component
 public class CorsConfigFromEnv {
@@ -25,7 +25,7 @@ public class CorsConfigFromEnv {
     private final String allowedOrigins;
 
     public CorsConfigFromEnv(
-            @Value("${app.cors.allowed-origins:http://localhost:5173}") String allowedOrigins
+            @Value("${app.cors.allowed-origins:http://localhost:*,http://127.0.0.1:*}") String allowedOrigins
     ) {
         this.allowedOrigins = allowedOrigins;
     }
@@ -38,11 +38,7 @@ public class CorsConfigFromEnv {
                 .filter(origin -> !origin.isBlank())
                 .toList();
 
-        if (origins.contains("*")) {
-            config.setAllowedOriginPatterns(List.of("*"));
-        } else {
-            config.setAllowedOrigins(origins);
-        }
+        config.setAllowedOriginPatterns(origins);
         config.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
         config.setAllowCredentials(true);
