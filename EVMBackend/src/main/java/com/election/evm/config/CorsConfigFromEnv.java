@@ -33,10 +33,14 @@ public class CorsConfigFromEnv {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
         
-        List<String> origins = Arrays.stream(allowedOrigins.split(","))
+        List<String> origins = new java.util.ArrayList<>(Arrays.stream(allowedOrigins.split(","))
                 .map(String::trim)
                 .filter(origin -> !origin.isBlank())
-                .toList();
+                .toList());
+                
+        // Explicitly add Vercel deployment domains
+        origins.add("https://emsfsad.vercel.app");
+        origins.add("https://emsklucom.vercel.app");
 
         config.setAllowedOriginPatterns(origins);
         config.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
