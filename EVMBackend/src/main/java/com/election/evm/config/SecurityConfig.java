@@ -46,8 +46,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
 
                         // IMPORTANT: Allow all preflight requests
-                        .requestMatchers(HttpMethod.OPTIONS, "/").permitAll()
-
+.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         // Health endpoints
                         .requestMatchers(
                                 HttpMethod.GET,
