@@ -7,11 +7,10 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 public class EvmBackendApplication {
 
 	public static void main(String[] args) {
-		// Forcefully override any broken SPRING_DATASOURCE_* environment variables in Railway
-		// and map them directly to Railway's auto-injected MYSQL_* variables instead.
-		System.setProperty("spring.datasource.url", "jdbc:mysql://${MYSQLHOST:localhost}:${MYSQLPORT:3306}/${MYSQLDATABASE:evm}?allowPublicKeyRetrieval=true&useSSL=false&serverTimezone=UTC");
-		System.setProperty("spring.datasource.username", "${MYSQLUSER:root}");
-		System.setProperty("spring.datasource.password", "${MYSQLPASSWORD:password}");
+		// Hardcoded database credentials provided by the user
+		System.setProperty("spring.datasource.url", "jdbc:mysql://tramway.proxy.rlwy.net:11201/railway?allowPublicKeyRetrieval=true&useSSL=false&serverTimezone=UTC");
+		System.setProperty("spring.datasource.username", "root");
+		System.setProperty("spring.datasource.password", "bpfmRrVuKtDGvYqVqbDqLuPBRECcWobz");
 
 		SpringApplication.run(EvmBackendApplication.class, args);
 	}
