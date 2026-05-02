@@ -2,12 +2,14 @@ package com.election.evm.service;
 
 import com.election.evm.dto.ApiResponse;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.mail.MailException;
-import org.springframework.mail.SimpleMailMessage;
-import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
 
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.security.SecureRandom;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Locale;
 import java.util.Map;
@@ -17,9 +19,12 @@ import java.util.concurrent.ConcurrentHashMap;
 public class OtpService {
     private static final int MAX_ATTEMPTS = 5;
 
-    private final JavaMailSender mailSender;
     private final SecureRandom random = new SecureRandom();
     private final Map<String, OtpEntry> otpStore = new ConcurrentHashMap<>();
+    private final HttpClient httpClient = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
+
+    @Value("${BREVO_API_KEY:}")
+    private String brevoApiKey;
 
     @Value("${app.mail.from:}")
     private String fromAddress;
@@ -30,8 +35,7 @@ public class OtpService {
     @Value("${app.otp.resend-cooldown-ms:60000}")
     private long resendCooldownMs;
 
-    public OtpService(JavaMailSender mailSender) {
-        this.mailSender = mailSender;
+    public OtpService() {
     }
 
     public ApiResponse<Void> sendOtp(String rawEmail) {
@@ -55,9 +59,9 @@ public class OtpService {
         try {
             sendMail(email, otp, expiresAt);
             return ApiResponse.success("OTP sent to your email.");
-        } catch (MailException ex) {
+        } catch (Exception ex) {
             otpStore.remove(email);
-            return ApiResponse.failure("Unable to send OTP email. Check mail configuration.");
+            return ApiResponse.failure("Unable to send OTP email via Brevo. Check configuration.");
         }
     }
 
@@ -110,15 +114,31 @@ public class OtpService {
         otpStore.remove(email);
     }
 
-    private void sendMail(String toEmail, String otp, Instant expiresAt) {
-        SimpleMailMessage message = new SimpleMailMessage();
-        if (fromAddress != null && !fromAddress.isBlank()) {
-            message.setFrom(fromAddress.trim());
+    private void sendMail(String toEmail, String otp, Instant expiresAt) throws Exception {
+        String senderEmail = (fromAddress != null && !fromAddress.isBlank()) ? fromAddress.trim() : "kdhanu0607@gmail.com";
+        
+        String jsonPayload = String.format("""
+                {
+                   "sender": { "email": "%s" },
+                   "to": [ { "email": "%s" } ],
+                   "subject": "Your EVM verification code",
+                   "textContent": "Your OTP is %s. It expires at %s UTC."
+                }
+                """, senderEmail, toEmail, otp, expiresAt.toString());
+
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create("https://api.brevo.com/v3/smtp/email"))
+                .header("api-key", brevoApiKey)
+                .header("Content-Type", "application/json")
+                .header("Accept", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(jsonPayload))
+                .build();
+
+        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        if (response.statusCode() >= 400) {
+            System.err.println("Brevo API error: " + response.body());
+            throw new RuntimeException("Failed to send email");
         }
-        message.setTo(toEmail);
-        message.setSubject("Your EVM verification code");
-        message.setText("Your OTP is " + otp + ". It expires at " + expiresAt + " UTC.");
-        mailSender.send(message);
     }
 
     private String normalizeEmail(String email) {
