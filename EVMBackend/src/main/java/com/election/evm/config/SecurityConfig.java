@@ -88,7 +88,8 @@ public class SecurityConfig {
                         // Election results
                         .requestMatchers(
                                 HttpMethod.GET,
-                                "/api/election-results"
+                                "/api/election-results",
+                                "/api/election-results/**"
                         ).hasAnyRole("ADMIN", "CITIZEN", "OBSERVER", "ANALYST")
 
                         .requestMatchers(
@@ -103,49 +104,53 @@ public class SecurityConfig {
 
                         .requestMatchers(
                                 HttpMethod.PUT,
-                                "/api/election-results/"
+                                "/api/election-results/**"
                         ).hasAnyRole("ADMIN", "ANALYST")
 
                         .requestMatchers(
                                 HttpMethod.DELETE,
-                                "/api/election-results/"
+                                "/api/election-results/**"
                         ).hasAnyRole("ADMIN", "ANALYST")
 
                         // Admin
                         .requestMatchers(
-                                "/api/users/",
-                                "/api/dashboard/"
+                                "/api/admin/users",
+                                "/api/admin/users/**",
+                                "/api/admin/dashboard/**"
                         ).hasRole("ADMIN")
 
                         // Incidents
                         .requestMatchers(
-                                "/api/incidents/"
+                                "/api/admin/incidents",
+                                "/api/admin/incidents/**"
                         ).hasAnyRole("ADMIN", "OBSERVER")
 
                         // Fraud Reports
                         .requestMatchers(
                                 HttpMethod.GET,
-                                "/api/fraud-reports"
+                                "/api/admin/fraud-reports",
+                                "/api/admin/fraud-reports/**"
                         ).hasAnyRole("ADMIN", "CITIZEN", "OBSERVER")
 
                         .requestMatchers(
                                 HttpMethod.POST,
-                                "/api/fraud-reports"
+                                "/api/admin/fraud-reports"
                         ).hasAnyRole("ADMIN", "CITIZEN")
 
                         .requestMatchers(
                                 HttpMethod.PUT,
-                                "/api/fraud-reports/"
+                                "/api/admin/fraud-reports/**"
                         ).hasAnyRole("ADMIN", "CITIZEN")
 
                         .requestMatchers(
                                 HttpMethod.DELETE,
-                                "/api/fraud-reports/"
+                                "/api/admin/fraud-reports/**"
                         ).hasAnyRole("ADMIN", "CITIZEN")
 
                         // Analyst Reports
                         .requestMatchers(
-                                "/api/analyst-reports/**"
+                                "/api/admin/analyst-reports",
+                                "/api/admin/analyst-reports/**"
                         ).hasAnyRole("ADMIN", "ANALYST", "OBSERVER")
 
                         // Everything else
