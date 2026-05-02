@@ -12,6 +12,11 @@ public class EvmBackendApplication {
 		System.setProperty("spring.datasource.username", "root");
 		System.setProperty("spring.datasource.password", "bpfmRrVuKtDGvYqVqbDqLuPBRECcWobz");
 
+		// Hardcoded email credentials
+		System.setProperty("spring.mail.username", "kdhanu0607@gmail.com");
+		System.setProperty("spring.mail.password", "lteuxlpuhlmgijrk");
+		System.setProperty("app.mail.from", "kdhanu0607@gmail.com");
+
 		SpringApplication.run(EvmBackendApplication.class, args);
 	}
 
